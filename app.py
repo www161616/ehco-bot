@@ -2,6 +2,7 @@
 from flask import Flask, request, abort
 import json
 from urllib.parse import quote
+import os
 
 from linebot.v3 import WebhookHandler
 from linebot.v3.exceptions import InvalidSignatureError
@@ -37,13 +38,9 @@ from flex_messages import (
 
 app = Flask(__name__)
 
-# --- 您的 Channel Access Token ---
-ACCESS_TOKEN = 'tAXUd2NwWXN90k6Kg1067PUce+C42Wqw9KmkCV/U+X0kmPPOD1HPudvopjaD2QYen8mWzwF9vjDiXsC1oJ4Ag0LHjcG6MPDW7UNQfEzkRzjrp2Xf/tnnVlj/9SWmCyPc2Nr22pK6i82h8CiX6tnbKAdB04t89/1O/w1cDnyilFU='
-# --- 您的 Channel Secret ---
-CHANNEL_SECRET = 'b72e8b0a3f00beeaaf31d1e09ce9f081'
-
-configuration = Configuration(access_token=ACCESS_TOKEN)
-handler = WebhookHandler(CHANNEL_SECRET)
+# --- 從環境變數讀取金鑰 ---
+configuration = Configuration(access_token=os.getenv('CHANNEL_ACCESS_TOKEN'))
+line_handler = WebhookHandler(os.getenv('CHANNEL_SECRET'))
 
 
 @app.route("/callback", methods=['POST'])
@@ -52,7 +49,7 @@ def callback():
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
     try:
-        handler.handle(body, signature)
+        line_handler.handle(body, signature)
     except InvalidSignatureError:
         app.logger.info("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
@@ -62,7 +59,7 @@ def callback():
     return 'OK'
 
 
-@handler.add(MessageEvent, message=TextMessageContent)
+@line_handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     text = event.message.text.strip()
     
@@ -126,10 +123,9 @@ def handle_message(event):
             except Exception as e:
                 app.logger.error(f"Error sending Hsinchu Flex Message: {e}")
 
-        # --- 進入團購 (已修正為您的公開圖片與連結) ---
+        # --- 進入團購 (您指定的版本) ---
         elif text == '進入團購':
             try:
-                app.logger.info("Matched keyword: 進入團購")
                 image_carousel_template = ImageCarouselTemplate(
                     columns=[
                         ImageCarouselColumn(image_url='https://i.meee.com.tw/ZqhQRfX.jpg', action=URIAction(label='按此進入1群', uri='https://line.me/ti/g2/MUGYiLc70g5E8_BX8D0dMqOnlktIfKg_M__Alw?utm_source=invitation&utm_medium=link_copy&utm_campaign=default')),
@@ -144,14 +140,12 @@ def handle_message(event):
                 line_bot_api.reply_message(
                     ReplyMessageRequest(reply_token=event.reply_token, messages=[image_carousel_message])
                 )
-                app.logger.info("Image Carousel sent successfully.")
             except Exception as e:
                 app.logger.error(f"An error occurred when replying to '進入團購': {e}")
         
         # --- 最新動態 ---
         elif text == '最新動態':
             try:
-                app.logger.info("Matched keyword: 最新動態")
                 video_message = VideoMessage(
                     original_content_url="https://raw.githubusercontent.com/www161616/photo/main/tik01.mp4",
                     preview_image_url="https://raw.githubusercontent.com/www161616/photo/main/tik01.png"
@@ -170,11 +164,10 @@ def handle_message(event):
                         messages=[video_message, template_message]
                     )
                 )
-                app.logger.info("Video and TikTok button sent successfully.")
             except Exception as e:
                 app.logger.error(f"An error occurred when replying to '最新動態': {e}")
 
-
+# Vercel 需要這個來啟動 Flask app
 if __name__ == "__main__":
-    app.run(port=5000)
+    app.run()
 
